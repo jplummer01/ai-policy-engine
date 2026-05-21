@@ -10,6 +10,7 @@ import { Export } from "./pages/Export"
 import { ClientDetail } from "./pages/ClientDetail"
 import { RoutingPolicies } from "./pages/RoutingPolicies"
 import { RequestBilling } from "./pages/RequestBilling"
+import { AccessProfiles } from "./pages/AccessProfiles"
 import { Apis } from "./pages/Apis"
 import { loginRequest } from "./auth/msalConfig"
 import { fetchPlans } from "./api"
@@ -23,6 +24,7 @@ const TAB_PATHS = {
   plans: "/plans",
   pricing: "/pricing",
   routing: "/routing",
+  access: "/access",
   apis: "/apis",
   requests: "/request-billing",
   export: "/export",
@@ -141,6 +143,7 @@ function App() {
       {activeTab === "plans" && <Plans />}
       {activeTab === "pricing" && <Pricing />}
       {activeTab === "routing" && <RoutingPolicies />}
+      {activeTab === "access" && <AccessProfiles />}
       {activeTab === "apis" && <Apis />}
       {activeTab === "requests" && <RequestBilling onSelectClient={(clientAppId, tenantId) => setSelectedClient({ clientAppId, tenantId })} />}
       {activeTab === "export" && <Export />}

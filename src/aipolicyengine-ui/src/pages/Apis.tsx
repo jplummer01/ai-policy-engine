@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useMsal } from "@azure/msal-react"
 import { AlertTriangle, Network, RefreshCcw } from "lucide-react"
 import { ApiTree } from "../components/apis/ApiTree"
@@ -13,11 +13,10 @@ import {
   clearApiPolicy,
   clearOperationPolicy,
   fetchApiPolicy,
-  fetchApimApis,
-  fetchApimOperations,
   fetchApimTemplates,
   fetchOperationPolicy,
 } from "../api/apim"
+import { useApimCatalog } from "../hooks/useApimCatalog"
 import type { PlanData } from "../types"
 import type {
   ApimApiSummary,
@@ -146,7 +145,6 @@ function derivePlanDefaults(plans: PlanData[]): Record<string, number> {
 
 export function Apis() {
   const { accounts } = useMsal()
-  const [apis, setApis] = useState<ApimApiSummary[]>([])
   const [templates, setTemplates] = useState<ApimTemplateSummary[]>([])
   const [plans, setPlans] = useState<PlanData[]>([])
   const [initialLoading, setInitialLoading] = useState(true)
@@ -155,10 +153,6 @@ export function Apis() {
   const [toast, setToast] = useState<ToastState | null>(null)
 
   const [expandedApiIds, setExpandedApiIds] = useState<string[]>([])
-  const [loadingOperationApiIds, setLoadingOperationApiIds] = useState<string[]>([])
-  const [operationsByApi, setOperationsByApi] = useState<Record<string, ApimOperationSummary[]>>({})
-  const [operationErrors, setOperationErrors] = useState<Record<string, string | null>>({})
-  const operationsByApiRef = useRef<Record<string, ApimOperationSummary[]>>({})
 
   const [selectedTarget, setSelectedTarget] = useState<SelectedTarget | null>(null)
   const [policyDocument, setPolicyDocument] = useState<PolicyDocumentResponse | null>(null)
@@ -176,14 +170,25 @@ export function Apis() {
   }, [accounts])
 
   const lacksExplicitAdminRole = adminRoleClaims.length > 0 && !adminRoleClaims.includes("AIPolicy.Admin")
+  const {
+    apis,
+    catalogLoading,
+    catalogError,
+    accessDenied: catalogAccessDenied,
+    operationsByApi,
+    operationErrors,
+    loadingOperationApiIds,
+    refreshApis,
+    ensureOperationsLoaded,
+    refreshOperations,
+  } = useApimCatalog({ enabled: !lacksExplicitAdminRole })
+  const effectiveAccessDeniedMessage = accessDeniedMessage ?? (catalogAccessDenied ? "You need AIPolicy.Admin role to use this page" : null)
   const selectedSummary = selectedTarget ? targetSummary(selectedTarget) : null
   const selectedKey = selectedTarget ? targetKey(selectedTarget) : undefined
   const busy = submittingAssignment || clearingAssignment
   const planDefaults = useMemo(() => derivePlanDefaults(plans), [plans])
-
-  useEffect(() => {
-    operationsByApiRef.current = operationsByApi
-  }, [operationsByApi])
+  const pageLoading = initialLoading || catalogLoading
+  const pageError = initialError ?? catalogError
 
   const showToast = useCallback((message: string, onRetry?: () => void, retryLabel = "Retry") => {
     setToast({ message, onRetry, retryLabel: onRetry ? retryLabel : undefined })
@@ -226,80 +231,26 @@ export function Apis() {
     }
   }, [handleAccessError, showToast])
 
-  const loadOperations = useCallback(async (api: ApimApiSummary) => {
-    if (loadingOperationApiIds.includes(api.id)) return
-
-    setLoadingOperationApiIds((current) => [...current, api.id])
-    setOperationErrors((current) => ({ ...current, [api.id]: null }))
-
-    try {
-      const response = await fetchApimOperations(api.id)
-      setOperationsByApi((current) => ({ ...current, [api.id]: response.operations ?? [] }))
-    } catch (error) {
-      const status = getStatus(error)
-      if (status === 401 || status === 403) {
-        handleAccessError()
-        return
-      }
-
-      const message = getErrorMessage(error, `Failed to load operations for ${api.displayName}`)
-      setOperationErrors((current) => ({ ...current, [api.id]: message }))
-      showToast(message, () => {
-        void loadOperations(api)
-      })
-    } finally {
-      setLoadingOperationApiIds((current) => current.filter((apiId) => apiId !== api.id))
-    }
-  }, [handleAccessError, loadingOperationApiIds, showToast])
-
   const loadInitialData = useCallback(async () => {
     setInitialLoading(true)
     setInitialError(null)
     setAccessDeniedMessage(null)
 
     try {
-      const [apisResponse, templatesResponse, plansResponse] = await Promise.all([
-        fetchApimApis(),
+      const [templatesResponse, plansResponse] = await Promise.all([
         fetchApimTemplates(),
         fetchPlans().catch(() => ({ plans: [] })),
+        refreshApis(),
       ])
 
-      const nextApis = apisResponse.apis ?? []
-      setApis(nextApis)
       setTemplates(templatesResponse.templates ?? [])
       setPlans(plansResponse.plans ?? [])
-      setOperationErrors({})
-      setOperationsByApi({})
       setExpandedApiIds([])
       setInitialError(null)
-
-      setSelectedTarget((current) => {
-        if (!current && nextApis.length > 0) {
-          return { kind: "api", api: nextApis[0] }
-        }
-
-        if (!current) return null
-
-        const matchingApi = nextApis.find((api) => api.id === current.api.id)
-        if (!matchingApi) {
-          return nextApis.length > 0 ? { kind: "api", api: nextApis[0] } : null
-        }
-
-        if (current.kind === "api") {
-          return { kind: "api", api: matchingApi }
-        }
-
-        const existingOperations = operationsByApiRef.current[matchingApi.id] ?? []
-        const matchingOperation = existingOperations.find((operation) => operation.id === current.operation.id)
-        return matchingOperation
-          ? { kind: "operation", api: matchingApi, operation: matchingOperation }
-          : { kind: "api", api: matchingApi }
-      })
     } catch (error) {
       const status = getStatus(error)
       if (status === 401 || status === 403) {
         handleAccessError()
-        setApis([])
         setTemplates([])
         setPlans([])
         return
@@ -313,7 +264,7 @@ export function Apis() {
     } finally {
       setInitialLoading(false)
     }
-  }, [handleAccessError, showToast])
+  }, [handleAccessError, refreshApis, showToast])
 
   useEffect(() => {
     if (lacksExplicitAdminRole) {
@@ -326,14 +277,36 @@ export function Apis() {
   }, [lacksExplicitAdminRole, loadInitialData])
 
   useEffect(() => {
-    if (!selectedTarget || accessDeniedMessage) {
+    setSelectedTarget((current) => {
+      if (!current) {
+        return apis[0] ? { kind: "api", api: apis[0] } : null
+      }
+
+      const matchingApi = apis.find((api) => api.id === current.api.id)
+      if (!matchingApi) {
+        return apis[0] ? { kind: "api", api: apis[0] } : null
+      }
+
+      if (current.kind === "api") {
+        return { kind: "api", api: matchingApi }
+      }
+
+      const matchingOperation = (operationsByApi[matchingApi.id] ?? []).find((operation) => operation.id === current.operation.id)
+      return matchingOperation
+        ? { kind: "operation", api: matchingApi, operation: matchingOperation }
+        : { kind: "api", api: matchingApi }
+    })
+  }, [apis, operationsByApi])
+
+  useEffect(() => {
+    if (!selectedTarget || effectiveAccessDeniedMessage) {
       setPolicyDocument(null)
       setPolicyError(null)
       return
     }
 
     void loadPolicy(selectedTarget)
-  }, [accessDeniedMessage, loadPolicy, selectedTarget])
+  }, [effectiveAccessDeniedMessage, loadPolicy, selectedTarget])
 
   useEffect(() => {
     if (!selectedTarget || !isPollingStatus(policyDocument?.assignment?.status)) return
@@ -356,7 +329,7 @@ export function Apis() {
     })
 
     if (!operationsByApi[api.id]) {
-      void loadOperations(api)
+      void ensureOperationsLoaded(api)
     }
   }
 
@@ -366,7 +339,7 @@ export function Apis() {
       setExpandedApiIds((current) => [...current, api.id])
     }
     if (!operationsByApi[api.id]) {
-      void loadOperations(api)
+      void ensureOperationsLoaded(api)
     }
   }
 
@@ -448,7 +421,7 @@ export function Apis() {
     }
   }
 
-  if (accessDeniedMessage) {
+  if (effectiveAccessDeniedMessage) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
@@ -463,7 +436,7 @@ export function Apis() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <p className="font-medium">{accessDeniedMessage}</p>
+              <p className="font-medium">{effectiveAccessDeniedMessage}</p>
               <p className="mt-1 text-sm">Ask an administrator to grant the AIPolicy.Admin role, then refresh this page.</p>
             </div>
           </div>
@@ -486,18 +459,18 @@ export function Apis() {
         </div>
         <div className="flex items-center gap-2">
           {Object.keys(planDefaults).length > 0 && <Badge variant="blue">Plan defaults available</Badge>}
-          <Button type="button" variant="outline" onClick={() => void loadInitialData()} disabled={initialLoading}>
-            <RefreshCcw className={`h-4 w-4 ${initialLoading ? "animate-spin" : ""}`} />
+          <Button type="button" variant="outline" onClick={() => void loadInitialData()} disabled={pageLoading}>
+            <RefreshCcw className={`h-4 w-4 ${pageLoading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
       </div>
 
-      {initialError && (
+      {pageError && (
         <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
-            <span>{initialError}</span>
+            <span>{pageError}</span>
             <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => void loadInitialData()}>
               Retry
             </Button>
@@ -507,7 +480,7 @@ export function Apis() {
 
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="min-h-[520px]">
-          {initialLoading ? (
+          {pageLoading ? (
             <div className="flex h-full min-h-[520px] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
               Loading APIs…
             </div>
@@ -523,7 +496,7 @@ export function Apis() {
               onApiSelect={handleApiSelect}
               onOperationSelect={handleOperationSelect}
               onRetryOperations={(api) => {
-                void loadOperations(api)
+                void refreshOperations(api)
               }}
             />
           )}
