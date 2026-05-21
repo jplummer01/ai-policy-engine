@@ -68,3 +68,26 @@ Freamon fixed a config-binding bug in the APIM infrastructure: the env var `APIM
 - Parameter card grid changed from `md:grid-cols-2` to `sm:grid-cols-2` for narrower modal viewport fit
 
 **Rule:** For any flex row with text + badges: `<span class="min-w-0 flex-1 truncate">Text</span><Badge class="flex-shrink-0">Label</Badge>`
+
+## 2026-05-21 — AAA M6 UI Pending (Access Profile Admin Page)
+
+**Status:** Pending — awaiting M3 precheck contract finalization
+
+**Scope:** Build `/access` page (new admin UI for Access Profiles)
+
+**Layout & Components:**
+- **Top:** Client selector (dropdown/search from existing `GET /api/clients`)
+- **Main grid:** APIs (rows) with columns: Plan, Routing Policy, Deployments allowed, Enable toggle
+- **Drill-down:** Click API row to expand operations with per-operation overrides
+- **Add/Edit form:** Select Plan (dropdown from existing plans), optionally select Routing Policy, optionally restrict deployments
+- **Bulk action:** "Apply to multiple APIs" — select APIs from checklist, assign same profile to all in one shot
+
+**Reuse:** Plan selector dropdown (already built for client assignment), Routing Policy selector (already built for Plans page)
+
+**Client First Workflow:** Primary user journey is "configure THIS client's access to various APIs" — not "which clients use this API". So the layout starts with client selector, then shows their API matrix.
+
+**Integration:** POST/PUT/DELETE via `/api/access-profiles/*` (Freamon M2). Trigger profile creation when form submits.
+
+**Validation:** Contract awaits M3 precheck integration (apiId/operationId handling) and M4 log-ingest (audit trail).
+
+**Next:** Start after M2 API contracts firm (2-3 days out).

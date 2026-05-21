@@ -37,6 +37,25 @@ API fully functional with:
 
 Backend is feature-complete and awaiting infrastructure deployment.
 
+## 2026-05-21 — AAA Per-Client Architecture (M1-M6 Kickoff)
+
+**Status:** In-flight (kicked off parallel to architecture approval)
+
+**Assigned Work:** M1-M3 implementation (Access Profiles authorization layer)
+- **M1:** AccessProfile model + Cosmos repository + IAccessProfileResolver service with cascade logic
+- **M2:** Admin CRUD endpoints (`/api/access-profiles/*`) + bulk assign
+- **M3:** Precheck endpoint integration — inject resolver, add apiId/operationId query param parsing, extend response with planId/accessProfileId/allowedDeployments, backward-compat fallback
+
+**Supporting M4-M5 (coordination with Sydnor):**
+- **M4:** Log-ingest endpoint — add AccessProfileId + PlanId + ApiId + OperationId to audit trail
+- **M5:** Template updates — all 5 APIM templates: add apiId/operationId variables, extend precheck URL, extract profile metadata from response, add fields to log payload, version bump 1.0→1.1
+
+**Architecture:** Most-specific-wins cascade resolution: `(client+operation)` > `(client+api)` > `(client+global)` > `ClientPlanAssignment` (level 4). Backward-compatible (no breaking changes to existing clients/templates).
+
+**Test Coverage (Bunk):** 21 tests planned — cascade logic, backward compat, integration flows.
+
+**Next Phase:** UI (`/access` page, Kima) starts after M2 API contracts firm.
+
 ## Learnings
 
 *Core learnings consolidated in Core Context section above (see git history for detailed entries).*

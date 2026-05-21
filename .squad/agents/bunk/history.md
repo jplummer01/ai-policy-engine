@@ -468,3 +468,16 @@ When writing tests for deployed infrastructure:
 **Action for Bunk:** Consider applying this pattern to UI component test coverage (ApiTree.tsx, AssignTemplateForm.tsx) to verify no text overflow regressions when grid resizes or content grows. Pattern examples: responsive badge placement with fixed widths, label truncation with dynamic form fields.
 
 **Context:** Kima fixed `/apis` page layout bugs (ApiTree row overflow, AssignTemplateForm param card overlap, modal horizontal scroll) by applying this Tailwind pattern systematically. Commit `3aeea053` on `seiggy/feature/apim-policy-management`.
+
+### 2026-05-21 — Cross-Agent Note: AAA Architecture M1-M3 Kickoff
+
+**From:** McNulty (Architect) → All agents  
+**Note:** AAA per-client access-profile architecture APPROVED by Zack. Freamon and Bunk now in-flight on parallel implementation.
+
+**For Bunk:** 21-test matrix in flight — Access Profile resolver cascade logic (6 levels), precheck backward compat guards (with/without apiId), log integration (AccessProfileId/PlanId context flow), template render diffs (all 5 templates), end-to-end cascade flow.
+
+**For Kima:** M6 UI (`/access` page) pending — will start after M3 precheck contract is firm. Page layout: client selector, API grid with per-operation drill-down, assign form with Plan/Routing/Deployment selectors, bulk assign action.
+
+**For Sydnor:** No new Terraform changes expected for AAA work itself — infrastructure is done. M5 template updates are pure APIM policy XML changes (not infrastructure); Sydnor may assist with template version bump and APIM SDK testing if needed.
+
+**Context:** Full architecture at `.squad/decisions/archive/mcnulty-aaa-per-client-arch.md` (387 lines) and pre/post contracts at `.squad/decisions/archive/mcnulty-aaa-pre-post-endpoint-contracts.md` (522 lines). Decisions merged to `.squad/decisions.md` entry 2026-05-21T21:28:06Z.

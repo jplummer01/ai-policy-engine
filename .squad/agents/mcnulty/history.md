@@ -57,6 +57,16 @@ All backend features (routing, pricing, observability) complete and tested. Infr
 - Storage: existing `configuration` container, new `policy-assignment` partition key document type.
 - Spec delivered to `.squad/decisions/inbox/mcnulty-apim-management-architecture.md`.
 
+**2026-05-21 — AAA Per-Client Endpoint Authorization Architecture:**
+- **Three-layer mental model confirmed:** Transport (APIM template → installs XML) → Authorization (Access Profiles → resolves which Plan/Routing applies) → Enforcement (Precheck → enforces quotas, rate limits, routing). Each layer is independent and composable.
+- **Resolution is a cascade, not a rules engine:** Most-specific match wins (`client+operation` > `client+api` > `client+global` > `ClientPlanAssignment` fallback). No merging between levels. Deterministic, cacheable, debuggable.
+- **Backward-compatible by design:** If `apiId`/`operationId` query params are absent from precheck call, resolver falls through to existing `ClientPlanAssignment` logic. Zero migration needed for existing deployments.
+- **Reusable "policy-on-top-of-policy" pattern:** When adding scoped overrides to a global default, use a cascade document with composite ID (`{scope}:{entity}:{qualifier}`), point-read by ID at each level, first-match-wins. Same pattern can apply to future features (e.g., per-API pricing overrides, per-operation DLP policies).
+- **Template integration is a query param addition, not structural change:** APIM has `context.Api.Id` and `context.Operation.Id` natively available. Passing them to precheck is a one-line URL append in the template. Doesn't require template re-architecture.
+- Spec delivered to `.squad/decisions/inbox/mcnulty-aaa-per-client-arch.md`.
+- **Endpoint contract addendum:** Pre/post endpoint integration is first-class scope. Precheck gets `apiId`/`operationId` as query params (backward-compat: absent = legacy path). Response gains `planId`/`accessProfileId`. Log endpoint gains `AccessProfileId`/`PlanId`/`ApiId`/`OperationId` fields. Profile ID flows via APIM `context.Variables` slot (precheck response → variable extraction → log payload). Resolver lives ONLY in precheck; log endpoint trusts the passed-in planId.
+- Addendum spec: `.squad/decisions/inbox/mcnulty-aaa-pre-post-endpoint-contracts.md`.
+
 *Core learnings consolidated in Core Context section above (see git history for detailed entries).*
 
 ## Archived Learnings (Pre-May 2026)

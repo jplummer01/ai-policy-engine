@@ -12,6 +12,46 @@
 
 ## Active Decisions
 
+### 2026-05-21T21:28:06Z: User directive — AAA access-profile architecture approved (M1-M6)
+**By:** Zack Way (via McNulty proposal review)  
+**Status:** Approved  
+**What:** Zack greenlit McNulty's AAA per-client endpoint authorization architecture (Access Profiles) with recommended defaults on all 6 open questions:
+- **Client Identity Model:** Keep dual pattern (Entra JWT + subscription-key) for v1; unify in v2 if needed
+- **Routing Paired with Plan:** `planId` is REQUIRED (routing without quota enforcement is meaningless)
+- **Client Lifecycle Drift:** (B) Orphaned profiles are harmless for v1; (C) show stale badge in UI for v2
+- **Multi-Tenancy Scope:** Global to engine (same client across APIs); Access Profiles add per-API scoping
+- **Naming:** "Access Profile" (RADIUS analogy: NAS-Port=endpoint, User-Name=clientAppId:tenantId, Service-Type=Plan+Routing)
+- **Default-Deny vs Default-Allow:** No API-default profiles for v1 (explicit client registration is a feature, not a bug)
+
+**Architecture Summary:**
+- New document type: `AccessProfile` (Cosmos `configuration` container, partition key `"access-profile"`)
+- Resolution cascade: `(client+operation)` > `(client+api)` > `(client+global)` > legacy `ClientPlanAssignment` (level 4)
+- Backward-compatible precheck integration: `apiId`/`operationId` query params optional; fall through to legacy if absent
+- New admin endpoints: `/api/access-profiles/*` (list, get, create, update, delete, bulk)
+- UI: `/access` page (client selector, API grid, per-operation drill-down, assign form) — Kima, starts after M3/M4 contract firm
+
+**Phasing (M1-M6):**
+- **M1:** AccessProfile model + Cosmos repo + IAccessProfileResolver cascade service (Freamon)
+- **M2:** Admin CRUD endpoints + bulk assign (Freamon)
+- **M3:** Precheck integration — apiId/operationId param parsing, extended response (planId, accessProfileId, allowedDeployments) (Freamon)
+- **M4:** Log-ingest integration — flow AccessProfileId + PlanId + ApiId + OperationId through to audit trail (Freamon)
+- **M5:** Template updates — all 5 APIM templates get apiId/operationId variables + precheck URL extension + profile extraction + log payload updates, version bump 1.0→1.1 (Freamon/Sydnor)
+- **M6:** UI `/access` page (Kima) — parallel to M1-M5 after M2 API ready
+
+**Test Coverage (Bunk):** 21 tests anticipated — resolver cascade (6 levels), precheck backward compat, log integration, template render, end-to-end flow
+
+**Why:** This architecture enables per-client per-API policy overrides while remaining fully backward-compatible. Existing templates/clients keep working unchanged. Access Profiles sit above transport layer (APIM templates) and above enforcement layer (precheck/log) — cleanly layered authorization.
+
+**Files:** Archived decisions:
+- `.squad/decisions/archive/mcnulty-aaa-per-client-arch.md` — Full 387-line architecture spec
+- `.squad/decisions/archive/mcnulty-aaa-pre-post-endpoint-contracts.md` — Full 522-line endpoint contracts addendum
+
+### 2026-05-21T14:16:20Z: User directive — AAA pre/post endpoint integration scope (CAPTURED)
+**By:** Zack Way (via Copilot)  
+**Status:** Captured (merged into approved architecture)  
+**What:** The new AAA per-client access-profile layer MUST integrate into the pre/post (precheck + log) endpoints. The endpoints must accept the API/operation context, resolve via Access Profiles (most-specific-wins cascade), and use the resolved Plan/Routing for enforcement and accounting — not just the legacy global ClientPlanAssignment.  
+**Why:** Architecture scope confirmation — captured for team memory.
+
 ### 2026-05-21T18:35:00Z: React effect callback stabilization — /apis render-loop guardrail
 **By:** Kima (UI Developer)  
 **Status:** Implemented  

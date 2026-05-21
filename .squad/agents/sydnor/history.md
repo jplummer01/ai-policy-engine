@@ -28,6 +28,22 @@ All backend phases complete and tested (235+ tests passing):
 - Terraform provider configured in `azure.yaml` with variable substitution template (`main.tfvars.json`)
 - Authentication aligned: azd + az CLI on same tenant (99e1e9a1-3a8f-4088-ad5d-60be65ecc59a)
 - All services operational: Container App API, APIM gateway, Cosmos DB, Redis Enterprise, Key Vault, Log Analytics
+
+## 2026-05-21 — AAA Infrastructure: No Terraform Changes Expected
+
+**Status:** Pending — infrastructure is complete
+
+**Coordination Note:** AAA per-client authorization layer (M1-M6) does NOT require new Terraform changes. Infrastructure is already deployed:
+- Cosmos DB (configuration container holds AccessProfiles)
+- Redis (resolver caching)
+- APIM with 5 base/DLP policy templates
+- Aspire orchestration (API ready for new endpoints)
+
+**Sydnor Role in AAA:**
+- **M5 Template Updates:** May assist with template version bump (1.0 → 1.1) and APIM SDK testing if needed, but templates are APIM policy XML changes, not infrastructure
+- **No Breaking Changes:** AAA is fully backward-compatible; existing clients/APIs continue working without modification
+
+**Next:** Monitor Freamon's M1-M5 delivery; assist with template testing/deployment when M5 reaches APIM staging.
 - App IDs registered via Terraform (api_app_id: d5bd33f4-09b1-4602-af88-29c5ec7728e0)
 
 **Current Issue (2026-05-14): AADSTS500113 — Reply URL Mismatch**
