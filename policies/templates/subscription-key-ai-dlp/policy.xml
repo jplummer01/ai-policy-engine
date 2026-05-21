@@ -47,12 +47,14 @@
 			if (segments.Length > 1) { return segments[segments.Length - 1]; }
 			return "unknown";
 		}" />
+		<set-variable name="apiIdValue" value="@(context.Api.Id)" />
+		<set-variable name="operationIdValue" value="@(context.Operation.Id)" />
 		<!-- Acquire a token from APIM's managed identity for the Container App audience -->
 		<authentication-managed-identity resource="{{ContainerAppAudience}}" output-token-variable-name="msi-access-token" ignore-error="false" />
 		<!-- Pre-check: verify client has a valid plan and is within quota BEFORE calling OpenAI -->
 		<set-variable name="containerAppBaseUrl" value="{{ContainerAppUrl}}" />
 		<send-request mode="new" response-variable-name="precheckResponse" timeout="10" ignore-error="true">
-			<set-url>@((string)context.Variables["containerAppBaseUrl"] + "/api/precheck/" + (string)context.Variables["clientAppId"] + "/" + (string)context.Variables["tenantId"] + "?deploymentId=" + (string)context.Variables["deploymentId"])</set-url>
+			<set-url>@($"{(string)context.Variables["containerAppBaseUrl"]}/api/precheck/{(string)context.Variables["clientAppId"]}/{(string)context.Variables["tenantId"]}?deploymentId={(string)context.Variables["deploymentId"]}&apiId={(string)context.Variables["apiIdValue"]}&operationId={(string)context.Variables["operationIdValue"]}")</set-url>
 			<set-method>GET</set-method>
 			<set-header name="Authorization" exists-action="override">
 				<value>@("Bearer " + (string)context.Variables["msi-access-token"])</value>
@@ -112,6 +114,10 @@
 			value="@(((IResponse)context.Variables["precheckResponse"]).Body.As<JObject>(preserveContent: true)["routedDeployment"]?.ToString())" />
 		<set-variable name="routingPolicyId"
 			value="@(((IResponse)context.Variables["precheckResponse"]).Body.As<JObject>(preserveContent: true)["routingPolicyId"]?.ToString())" />
+		<set-variable name="accessProfileId"
+			value="@(((IResponse)context.Variables["precheckResponse"]).Body.As<JObject>(preserveContent: true)["accessProfileId"]?.ToString())" />
+		<set-variable name="resolvedPlanId"
+			value="@(((IResponse)context.Variables["precheckResponse"]).Body.As<JObject>(preserveContent: true)["planId"]?.ToString())" />
 		<!-- If routing produced a different deployment, rewrite the backend URL path -->
 		<choose>
 			<when condition="@(!string.IsNullOrEmpty((string)context.Variables["routedDeployment"]) &amp;&amp; (string)context.Variables["routedDeployment"] != (string)context.Variables["deploymentId"])">
@@ -262,6 +268,10 @@
 				payload.Add(new JProperty("requestedDeploymentId", requestedDeploymentId ?? ""));
 				payload.Add(new JProperty("routedDeployment", context.Variables.GetValueOrDefault<string>("routedDeployment") ?? ""));
 				payload.Add(new JProperty("routingPolicyId", context.Variables.GetValueOrDefault<string>("routingPolicyId") ?? ""));
+				payload.Add(new JProperty("accessProfileId", context.Variables.GetValueOrDefault<string>("accessProfileId") ?? ""));
+				payload.Add(new JProperty("planId", context.Variables.GetValueOrDefault<string>("resolvedPlanId") ?? ""));
+				payload.Add(new JProperty("apiId", context.Variables.GetValueOrDefault<string>("apiIdValue") ?? ""));
+				payload.Add(new JProperty("operationId", context.Variables.GetValueOrDefault<string>("operationIdValue") ?? ""));
 				payload.Add(new JProperty("correlationId", context.RequestId.ToString()));
 				return payload.ToString();
 			}</set-body>

@@ -13,6 +13,23 @@ public sealed class AccessProfilePrecheckTests : IClassFixture<ChargebackApiFact
 {
     private readonly ChargebackApiFactory _factory;
     private static readonly JsonSerializerOptions JsonOpts = JsonConfig.Default;
+    private static readonly string[] ShippedTemplateIds =
+    [
+        "entra-jwt-ai",
+        "entra-jwt-ai-dlp",
+        "subscription-key-ai",
+        "subscription-key-ai-dlp",
+        "entra-jwt-rest"
+    ];
+
+    private static readonly string[] PrecheckTemplateIds =
+    [
+        "entra-jwt-ai",
+        "entra-jwt-ai-dlp",
+        "subscription-key-ai",
+        "subscription-key-ai-dlp"
+    ];
+
     private const string ClientAppId = "access-client";
     private const string TenantId = "tenant-1";
 
@@ -142,24 +159,52 @@ public sealed class AccessProfilePrecheckTests : IClassFixture<ChargebackApiFact
         Assert.Equal("gpt-4o", json.RootElement.GetProperty("requestedDeployment").GetString());
     }
 
-    [Fact(Skip = "[Pending: M4] all templates must render <set-variable name=\"apiId\"> extraction")]
-    public void TemplateRendering_Pending_ApiIdVariableExtraction()
+    [Fact]
+    public void TemplateRendering_ApiIdVariableExtraction()
     {
+        foreach (var templateId in ShippedTemplateIds)
+        {
+            var policyXml = ReadTemplatePolicy(templateId);
+            Assert.Contains("<set-variable name=\"apiIdValue\" value=\"@(context.Api.Id)\" />", policyXml, StringComparison.Ordinal);
+            Assert.Contains("<set-variable name=\"operationIdValue\" value=\"@(context.Operation.Id)\" />", policyXml, StringComparison.Ordinal);
+        }
     }
 
-    [Fact(Skip = "[Pending: M4] all templates must include apiId and operationId on the precheck URL")]
-    public void TemplateRendering_Pending_PrecheckUrlCarriesApiAndOperation()
+    [Fact]
+    public void TemplateRendering_PrecheckUrlCarriesApiAndOperation()
     {
+        foreach (var templateId in PrecheckTemplateIds)
+        {
+            var policyXml = ReadTemplatePolicy(templateId);
+            Assert.Contains("&apiId={(string)context.Variables[\"apiIdValue\"]}&operationId={(string)context.Variables[\"operationIdValue\"]}", policyXml, StringComparison.Ordinal);
+        }
     }
 
-    [Fact(Skip = "[Pending: M4] all templates must include accessProfileId/planId/apiId/operationId in outbound log payload")]
-    public void TemplateRendering_Pending_LogPayloadCarriesAccessProfileMetadata()
+    [Fact]
+    public void TemplateRendering_LogPayloadCarriesAccessProfileMetadata()
     {
+        foreach (var templateId in ShippedTemplateIds)
+        {
+            var policyXml = ReadTemplatePolicy(templateId);
+            Assert.Contains("JProperty(\"accessProfileId\"", policyXml, StringComparison.Ordinal);
+            Assert.Contains("GetValueOrDefault<string>(\"accessProfileId\")", policyXml, StringComparison.Ordinal);
+            Assert.Contains("JProperty(\"planId\"", policyXml, StringComparison.Ordinal);
+            Assert.Contains("GetValueOrDefault<string>(\"resolvedPlanId\")", policyXml, StringComparison.Ordinal);
+            Assert.Contains("JProperty(\"apiId\"", policyXml, StringComparison.Ordinal);
+            Assert.Contains("GetValueOrDefault<string>(\"apiIdValue\")", policyXml, StringComparison.Ordinal);
+            Assert.Contains("JProperty(\"operationId\"", policyXml, StringComparison.Ordinal);
+            Assert.Contains("GetValueOrDefault<string>(\"operationIdValue\")", policyXml, StringComparison.Ordinal);
+        }
     }
 
-    [Fact(Skip = "[Pending: M4] template manifests should bump to version 1.1 once AAA fields ship")]
-    public void TemplateRendering_Pending_TemplateVersionBump()
+    [Fact]
+    public void TemplateRendering_TemplateVersionBump()
     {
+        foreach (var templateId in ShippedTemplateIds)
+        {
+            using var manifestJson = JsonDocument.Parse(ReadTemplateManifest(templateId));
+            Assert.Equal("1.1", manifestJson.RootElement.GetProperty("version").GetString());
+        }
     }
 
     private HttpClient CreateClient(object? resolver = null)
@@ -180,6 +225,28 @@ public sealed class AccessProfilePrecheckTests : IClassFixture<ChargebackApiFact
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "test-token");
         return client;
+    }
+
+    private static string ReadTemplatePolicy(string templateId)
+        => File.ReadAllText(Path.Combine(FindRepositoryRoot(), "policies", "templates", templateId, "policy.xml"));
+
+    private static string ReadTemplateManifest(string templateId)
+        => File.ReadAllText(Path.Combine(FindRepositoryRoot(), "policies", "templates", templateId, "template.json"));
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (Directory.Exists(Path.Combine(directory.FullName, "policies", "templates")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Repository root with policies\\templates was not found.");
     }
 
     private void SeedPlan(PlanData plan)

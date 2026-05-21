@@ -47,6 +47,8 @@
 			return !string.IsNullOrEmpty(azp) ? azp : jwt?.Claims.GetValueOrDefault(&quot;appid&quot;,&quot;&quot;);
 		}" />
 		<set-variable name="customerKey" value="@((string)context.Variables[&quot;clientAppId&quot;] + &quot;:&quot; + (string)context.Variables[&quot;tenantId&quot;])" />
+		<set-variable name="apiIdValue" value="@(context.Api.Id)" />
+		<set-variable name="operationIdValue" value="@(context.Operation.Id)" />
 		<!-- Default limit source: APIM named values rendered at policy-apply time.
 		     Alternative: a deployment job can fetch per-API plan limits from the policy engine and render/update this policy before import.
 		     APIM gotcha: quota-by-key's calls and renewal-period attributes do not allow runtime policy expressions, so a request-time send-request config lookup cannot directly drive quota-by-key. -->
@@ -65,12 +67,14 @@
 		     4. Keep outbound /api/log-rest so dashboards and audit stay consistent.
 
 		<send-request mode="new" response-variable-name="precheckRestResponse" timeout="10" ignore-error="true">
-			<set-url>@("{{ContainerAppUrl}}/api/precheck-rest/" + (string)context.Variables["clientAppId"] + "?tenantId=" + (string)context.Variables["tenantId"])</set-url>
+			<set-url>@($"{{ContainerAppUrl}}/api/precheck-rest/{(string)context.Variables["clientAppId"]}?tenantId={(string)context.Variables["tenantId"]}&apiId={(string)context.Variables["apiIdValue"]}&operationId={(string)context.Variables["operationIdValue"]}")</set-url>
 			<set-method>GET</set-method>
 			<set-header name="Authorization" exists-action="override">
 				<value>@("Bearer " + (string)context.Variables["msi-access-token"])</value>
 			</set-header>
 		</send-request>
+		<set-variable name="accessProfileId" value="@(((IResponse)context.Variables["precheckRestResponse"]).Body.As<JObject>(preserveContent: true)["accessProfileId"]?.ToString())" />
+		<set-variable name="resolvedPlanId" value="@(((IResponse)context.Variables["precheckRestResponse"]).Body.As<JObject>(preserveContent: true)["planId"]?.ToString())" />
 		<choose>
 			<when condition="@(context.Variables[\"precheckRestResponse\"] == null)">
 				<return-response>
@@ -113,6 +117,10 @@
 				payload.Add(new Newtonsoft.Json.Linq.JProperty("requestPath", context.Request.Url.Path));
 				payload.Add(new Newtonsoft.Json.Linq.JProperty("statusCode", context.Response.StatusCode));
 				payload.Add(new Newtonsoft.Json.Linq.JProperty("latencyMs", latencyMs));
+				payload.Add(new Newtonsoft.Json.Linq.JProperty("accessProfileId", context.Variables.GetValueOrDefault<string>("accessProfileId") ?? ""));
+				payload.Add(new Newtonsoft.Json.Linq.JProperty("planId", context.Variables.GetValueOrDefault<string>("resolvedPlanId") ?? ""));
+				payload.Add(new Newtonsoft.Json.Linq.JProperty("apiId", context.Variables.GetValueOrDefault<string>("apiIdValue") ?? ""));
+				payload.Add(new Newtonsoft.Json.Linq.JProperty("operationId", context.Variables.GetValueOrDefault<string>("operationIdValue") ?? ""));
 				payload.Add(new Newtonsoft.Json.Linq.JProperty("correlationId", context.RequestId.ToString()));
 				return payload.ToString();
 			}</set-body>
