@@ -223,7 +223,7 @@ resource "azurerm_container_app" "this" {
       }
 
       env {
-        name  = "APIM_RESOURCE_ID"
+        name  = "Apim__ResourceId"
         value = var.apim_resource_id
       }
 
