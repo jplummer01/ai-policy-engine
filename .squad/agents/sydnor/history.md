@@ -309,3 +309,39 @@ Freamon discovered and fixed a config-binding bug in the APIM_RESOURCE_ID wiring
 
 **Decision Merged into `.squad/decisions.md`:** All future APIM Terraform wiring must use `Apim__ResourceId` when populating the nested config key. Freamon audited 200+ env vars and found no other mismatches.
 
+### 2026-05-21T21:48:19Z — AAA M4 APIM Template Updates In-Flight
+
+**Status:** 🔄 IN-FLIGHT
+
+**Scope:**
+Update all 5 APIM policy templates (version 1.0 → 1.1):
+- `policies/entra-jwt-ai/policy.xml`
+- `policies/entra-jwt-ai-dlp/policy.xml`
+- `policies/subscription-key-ai/policy.xml`
+- `policies/subscription-key-ai-dlp/policy.xml`
+- `policies/entra-jwt-rest/policy.xml` (log-ingest only)
+
+**Changes per template:**
+- Add APIM `set-variable` blocks to extract `apiId` and `operationId` from request context
+- Extend precheck URL with `&apiId={apiId}&operationId={operationId}` query params
+- Extract resolved `accessProfileId`, `planId`, `allowedDeployments` from precheck response
+- Add those fields to outbound log payload (alongside existing `correlationId`, `clientAppId`, `requestCost`)
+- Update template manifest version: `1.0` → `1.1`
+
+**Blockers Now Cleared:**
+- ✅ Freamon M1-M3: Precheck/log endpoints ready with apiId/operationId param support
+- ✅ Bunk: 21-test matrix complete (4 pending M4 template assertions documented)
+
+**Test Coverage (Bunk Pending M4):**
+- Template extracts `apiId` from request context
+- Precheck URL carries new params
+- Outbound log payload carries AccessProfileId, PlanId, ApiId, OperationId
+- Template manifest version bumped to `1.1`
+
+**Next Steps:**
+- Implement template XML diffs
+- Run Bunk's 4 pending template assertions
+- Coordinate with APIM deployment/staging validation
+- Parallel to Kima's M5 UI work
+
+

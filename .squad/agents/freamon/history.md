@@ -81,3 +81,28 @@ For detailed work items, see:
 - Async apply is better implemented as an in-process channel + `BackgroundService` than ad-hoc `Task.Run` from endpoints. Endpoints persist the desired assignment as `pending`, enqueue a scope work item, and return 202 immediately; the worker flips to `applying`, re-renders from stored parameters, applies through the SDK, computes `generatedXmlHash` on success, and records `failed/errorMessage` on exceptions. Startup replay of `pending`/`applying` items should be best-effort so tests or partial environments do not stop the host.
 - For Bunk: the APIM seams are now interface-first (`IApimCatalogService`, `ITemplateLibraryService`, `IPolicyAssignmentRepository`, `IApimPolicyApplyService`) and the worker logic is isolated in `ApimPolicyApplyService.ProcessAssignmentAsync`. Unit tests can exercise template rendering and apply orchestration without live Azure; recorded/live APIM coverage should focus on `ApimCatalogService` method mappings and the raw-XML policy format behavior.
 - ASP.NET Core binds nested options like Apim:ResourceId from environment variables that use double underscores (Apim__ResourceId), not single underscores. When Terraform wires Container App settings for ApimManagementOptions.ResourceId, use the double-underscore form or the API will see an empty resource ID at runtime (src/AIPolicyEngine.Api/Services/ApimManagement/ApimManagementOptions.cs, infra/terraform/modules/compute/main.tf).
+
+## 2026-05-21T21:48:19Z — AAA M1-M3 Backend Implementation Complete
+
+**Status:** ✅ COMPLETE
+
+**Commits:**
+- Freamon M1-M3: `3d409d24`
+
+**Delivered:**
+- **M1:** AccessProfile model (Cosmos `configuration` container, partition key `"access-profile"`, deterministic IDs `ap:{clientAppId}:{tenantId}:{apiId}:{operationId|_all}`)
+- **M2:** IAccessProfileResolver service + cascade logic (operation > api > global > legacy fallback); admin CRUD endpoints `/api/access-profiles/*`, bulk assign
+- **M3:** Precheck endpoint — optional `apiId`/`operationId` params, extended response fields `planId`/`accessProfileId`/`allowedDeployments`, backward-compat fallback (no `apiId` = legacy path)
+- **M3:** Log-ingest endpoint — accept + persist `accessProfileId`, `planId`, `apiId`, `operationId` to audit trail; plan inheritance for routing/deployment policy
+
+**Key Decisions Validated:**
+- Client metering stays on ClientPlanAssignment (quota/rate-limit state); Access Profiles layer above resolves policy
+- Legacy callers work unchanged (preserved backward compat)
+- Plan override semantics: profile wins if populated; otherwise plan defaults
+
+**Test Validation:**
+- ✅ `dotnet build src\AIPolicyEngine.Api\AIPolicyEngine.Api.csproj --nologo`
+- ✅ `dotnet test src\AIPolicyEngine.Tests\AIPolicyEngine.Tests.csproj --no-restore --nologo` → 311 succeeded, 8 skipped (0 failed)
+
+**Blocked Issue Resolved (Bunk coordination):**
+- Test matrix depended on M1-M3 endpoint contracts and audit trail shapes; now ready for Bunk's 21-test assertions and Sydnor's M4 template updates

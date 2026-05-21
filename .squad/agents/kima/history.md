@@ -91,3 +91,47 @@ Freamon fixed a config-binding bug in the APIM infrastructure: the env var `APIM
 **Validation:** Contract awaits M3 precheck integration (apiId/operationId handling) and M4 log-ingest (audit trail).
 
 **Next:** Start after M2 API contracts firm (2-3 days out).
+
+### 2026-05-21T21:48:19Z — AAA M5 UI (`/access` Page) In-Flight
+
+**Status:** 🔄 IN-FLIGHT
+
+**Scope:**
+Build the `/access` admin page for Access Profile management (new per-client, per-API authorization overrides).
+
+**Layout & Components:**
+- **Top Section:** Client selector (dropdown/search from `/api/clients`)
+- **Main Grid:** API rows with columns:
+  - Plan (read-only, shows from profile or inherited)
+  - Routing Policy (select or null for inherit)
+  - Deployments Allowed (multi-select or null for inherit)
+  - Enable/Disable toggle
+- **Drill-down:** Click API row to reveal operations table with per-operation overrides (same column structure)
+- **Add/Edit Form:** Modal with Plan selector, optional Routing Policy, optional deployment restrictions, submit/cancel
+- **Bulk Action:** Select multiple APIs from checklist, apply the same profile to all in one shot
+
+**Reuse Existing Components:**
+- Plan selector dropdown (`.squad/skills/` available)
+- Routing Policy selector (already built for Plans page)
+- Tailwind flex+truncate pattern for row overflow (`.squad/skills/tailwind-flex-truncate-pattern/SKILL.md`)
+- React render-loop debugging skill (`.squad/skills/react-render-loop-debugging/SKILL.md` — avoid Apis.tsx pattern)
+
+**API Contract:**
+- GET `/api/access-profiles` — list profiles for a client
+- POST/PUT `/api/access-profiles/{id}` — create/update profile
+- DELETE `/api/access-profiles/{id}` — delete profile
+- Bulk endpoint (TBD via Freamon M2 spec)
+
+**Blockers Now Cleared:**
+- ✅ Freamon M1-M3: Precheck contract finalized (apiId/operationId path ready)
+- ✅ Bunk: 21-test matrix validates response shapes
+
+**Parallel to M4:**
+- Sydnor's M4 template updates do not block UI work
+- API endpoint contracts already firm
+
+**Next Steps:**
+- Start component structure (ClientSelector, ApiGrid, OperationGrid, ProfileForm)
+- Implement data fetch + caching patterns (parallel to API updates)
+- Polish flex+truncate styling for API/operation rows
+- Mock data for component testing before API integration

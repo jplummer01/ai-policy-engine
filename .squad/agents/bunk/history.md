@@ -481,3 +481,34 @@ When writing tests for deployed infrastructure:
 **For Sydnor:** No new Terraform changes expected for AAA work itself — infrastructure is done. M5 template updates are pure APIM policy XML changes (not infrastructure); Sydnor may assist with template version bump and APIM SDK testing if needed.
 
 **Context:** Full architecture at `.squad/decisions/archive/mcnulty-aaa-per-client-arch.md` (387 lines) and pre/post contracts at `.squad/decisions/archive/mcnulty-aaa-pre-post-endpoint-contracts.md` (522 lines). Decisions merged to `.squad/decisions.md` entry 2026-05-21T21:28:06Z.
+
+### 2026-05-21T21:48:19Z — AAA M1-M3 Test Matrix Complete
+
+**Status:** ✅ COMPLETE
+
+**Commits:**
+- Bunk 21-test matrix: `6c858b96`
+
+**Delivered:**
+- **Resolver unit tests (6):** Operation-specific > API-wide > client-global > legacy fallback cascade levels; disabled profile skip; null edge cases
+- **Precheck integration tests (6):** With/without `apiId`/`operationId`; legacy backward compat (no apiId = legacy path); disabled profile handling; AAA response with `allowedDeployments`
+- **Log integration tests (4):** PlanId resolution (supplied wins, fallback to legacy assignment); AccessProfileId persistence to audit trail; legacy payload compat
+- **End-to-end cascade test (1):** Full precheck → log flow with cascade resolution order
+- **Pending M4 template assertions (4 skipped):** Template render (apiId/operationId extraction), precheck URL diffs, log payload diffs, version bump 1.0→1.1
+
+**Test Results:**
+- Total: 320
+- Succeeded: 312 (↑ +17 from M1-M3 baseline)
+- Skipped: 8 (4 pending M4 template assertions, 4 pre-existing)
+- Failed: 0
+
+**Key Test Decisions:**
+- Resolver fallback logic placed inside service (not endpoint) — aligns with approved test matrix
+- ResolvedAccessProfile type alias used for contract clarity
+- Legacy precheck path preserved without access-profile metadata
+- Plan resolution edge case (mismatched PlanId) not asserted (not in approved matrix)
+
+**Blocked Issues Resolved:**
+- Freamon M1-M3 contract firm → all resolver/precheck/log shapes now testable
+- Template diffs now visible → Sydnor can proceed with M4 APIM updates
+- All assertions passing → M4 and M5 in-flight now unblocked

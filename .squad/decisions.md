@@ -12,6 +12,22 @@
 
 ## Active Decisions
 
+### 2026-05-21T21:48:19Z: Implementation status — AAA M1-M3 backend complete, M4-M5 parallel in-flight
+**By:** Scribe (logged from orchestration)  
+**Status:** In-Flight  
+**What:** 
+- **M1-M3 COMPLETE (Freamon):** AccessProfile model, Cosmos repo, IAccessProfileResolver cascade, CRUD endpoints, precheck integration, log-ingest integration. Commit `3d409d24`.
+- **21-test matrix COMPLETE (Bunk):** 17 passing + 4 pending M4 template assertions. Total test baseline: 320 (312 pass, 8 skip). Commit `6c858b96`.
+- **M4 IN-FLIGHT (Sydnor):** APIM template updates (5 templates, version 1.0→1.1, apiId/operationId variables, precheck URL extension, log payload updates).
+- **M5 IN-FLIGHT (Kima):** `/access` admin page (client selector, API grid, per-operation drill-down, assign form).
+
+**Validation:**
+- ✅ Freamon: `dotnet build` + `dotnet test` (311 pass, 8 skip)
+- ✅ Bunk: 21-test matrix (17 pass, 4 pending M4)
+- Sydnor/Kima: Parallel to M3 completion; M4 blockers lifted, M5 API ready
+
+**Why:** Track M1-M3 delivery and verify M4/M5 can proceed without dependency deadlock.
+
 ### 2026-05-21T21:28:06Z: User directive — AAA access-profile architecture approved (M1-M6)
 **By:** Zack Way (via McNulty proposal review)  
 **Status:** Approved  
