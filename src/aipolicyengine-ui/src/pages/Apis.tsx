@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMsal } from "@azure/msal-react"
 import { AlertTriangle, Network, RefreshCcw } from "lucide-react"
 import { ApiTree } from "../components/apis/ApiTree"
@@ -158,6 +158,7 @@ export function Apis() {
   const [loadingOperationApiIds, setLoadingOperationApiIds] = useState<string[]>([])
   const [operationsByApi, setOperationsByApi] = useState<Record<string, ApimOperationSummary[]>>({})
   const [operationErrors, setOperationErrors] = useState<Record<string, string | null>>({})
+  const operationsByApiRef = useRef<Record<string, ApimOperationSummary[]>>({})
 
   const [selectedTarget, setSelectedTarget] = useState<SelectedTarget | null>(null)
   const [policyDocument, setPolicyDocument] = useState<PolicyDocumentResponse | null>(null)
@@ -179,6 +180,10 @@ export function Apis() {
   const selectedKey = selectedTarget ? targetKey(selectedTarget) : undefined
   const busy = submittingAssignment || clearingAssignment
   const planDefaults = useMemo(() => derivePlanDefaults(plans), [plans])
+
+  useEffect(() => {
+    operationsByApiRef.current = operationsByApi
+  }, [operationsByApi])
 
   const showToast = useCallback((message: string, onRetry?: () => void, retryLabel = "Retry") => {
     setToast({ message, onRetry, retryLabel: onRetry ? retryLabel : undefined })
@@ -284,7 +289,7 @@ export function Apis() {
           return { kind: "api", api: matchingApi }
         }
 
-        const existingOperations = operationsByApi[matchingApi.id] ?? []
+        const existingOperations = operationsByApiRef.current[matchingApi.id] ?? []
         const matchingOperation = existingOperations.find((operation) => operation.id === current.operation.id)
         return matchingOperation
           ? { kind: "operation", api: matchingApi, operation: matchingOperation }
@@ -308,7 +313,7 @@ export function Apis() {
     } finally {
       setInitialLoading(false)
     }
-  }, [handleAccessError, operationsByApi, showToast])
+  }, [handleAccessError, showToast])
 
   useEffect(() => {
     if (lacksExplicitAdminRole) {

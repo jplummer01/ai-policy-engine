@@ -13,6 +13,8 @@
 ## Learnings
 
 *Core learnings consolidated in Core Context section above (see git history for detailed entries).*
+- 2026-05-21: The `/apis` page render loop came from `loadInitialData` depending on `operationsByApi` while also resetting that state to a fresh `{}`, which changed the callback identity and re-fired the mount effect forever.
+- Rule: if an effect triggers a callback that mutates local maps/arrays, keep the callback keyed to stable inputs and read the latest collection through a ref or stable ID instead of adding the collection itself to the callback deps.
 
 ## Archived Learnings (Pre-May 2026)
 
