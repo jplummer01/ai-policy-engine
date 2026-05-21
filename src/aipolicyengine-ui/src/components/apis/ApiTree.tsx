@@ -82,13 +82,10 @@ export function ApiTree({
                       aria-current={selectedKey === apiKey ? "page" : undefined}
                     >
                       <div className="flex w-full items-center gap-2">
-                        <span className="truncate font-medium">{api.displayName}</span>
-                        {api.isCurrent && <Badge variant="green">Current</Badge>}
+                        <span className="min-w-0 flex-1 truncate font-medium">{api.displayName}</span>
+                        {api.isCurrent && <Badge variant="green" className="flex-shrink-0">Current</Badge>}
                       </div>
                       <span className="truncate font-mono text-xs text-muted-foreground">/{api.path}</span>
-                      {api.serviceUrl && (
-                        <span className="truncate text-xs text-muted-foreground">{api.serviceUrl}</span>
-                      )}
                     </button>
                   </div>
 
@@ -123,12 +120,11 @@ export function ApiTree({
                             aria-current={selectedKey === operationKey ? "page" : undefined}
                           >
                             <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className="truncate font-medium">{operation.displayName}</span>
-                                <Badge variant="outline">{operation.method}</Badge>
+                                <Badge variant="outline" className="flex-shrink-0">{operation.method}</Badge>
+                                <span className="min-w-0 flex-1 truncate font-medium">{operation.urlTemplate}</span>
                               </div>
-                              <div className="truncate font-mono text-xs text-muted-foreground">{operation.urlTemplate}</div>
                             </div>
                           </button>
                         )

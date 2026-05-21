@@ -173,15 +173,15 @@ export function AssignTemplateForm({
           ) : selectedTemplate.parameters.length === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">This template does not require parameters.</p>
           ) : (
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {selectedTemplate.parameters.map((parameter) => (
-                <div key={parameter.name} className="space-y-2 rounded-lg border p-3">
+                <div key={parameter.name} className="min-w-0 space-y-2 rounded-lg border p-3">
                   <div className="flex items-center gap-2">
-                    <label htmlFor={`template-parameter-${parameter.name}`} className="text-sm font-medium">
+                    <label htmlFor={`template-parameter-${parameter.name}`} className="min-w-0 flex-1 truncate text-sm font-medium">
                       {parameter.name}
                     </label>
-                    {parameter.required && <Badge variant="red">Required</Badge>}
-                    <Badge variant="outline">{parameter.type}</Badge>
+                    {parameter.required && <Badge variant="red" className="flex-shrink-0">Required</Badge>}
+                    <Badge variant="outline" className="flex-shrink-0">{parameter.type}</Badge>
                   </div>
                   {parameter.description && (
                     <p className="text-xs text-muted-foreground">{parameter.description}</p>
