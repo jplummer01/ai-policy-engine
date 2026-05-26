@@ -45,7 +45,7 @@ public static class AuthConfigEndpoints
                 : "",
             audience = config["AzureAd:Audience"] ?? "",
             scope = config["AzureAd:Audience"] is string aud && !string.IsNullOrEmpty(aud)
-                ? $"api://{aud}/access_as_user"
+                ? $"{(aud.StartsWith("api://") ? aud : $"api://{aud}")}/access_as_user"
                 : "",
         });
     }
