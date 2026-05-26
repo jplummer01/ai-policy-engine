@@ -115,8 +115,7 @@ function AzureAdApp() {
   const [selectedClient, setSelectedClient] = useState<{ clientAppId: string; tenantId: string } | null>(null)
   const [plans, setPlans] = useState<PlanData[]>([])
   const isAuthenticated = useIsAuthenticated()
-  const { inProgress } = useMsal()
-  const authProvider = getResolvedAuthProvider()
+  const { instance, inProgress } = useMsal()
 
   const handleTabChange = useCallback((tab: string) => {
     const nextTab = (tab in TAB_PATHS ? tab : "dashboard") as TabId
