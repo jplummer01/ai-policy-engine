@@ -334,11 +334,11 @@ export function Plans() {
               <Input type="number" min="0" value={planForm.requestsPerMinuteLimit} onChange={(e) => updateField("requestsPerMinuteLimit", e.target.value)} />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">0 = block all calls for this plan.</p>
           <div className="space-y-3 rounded border p-3">
             <label className="text-sm font-medium block">Non-AI REST Limits</label>
             <p className="text-xs text-muted-foreground">
-              Applied per-tenant per-API for REST APIs using the Keycloak JWT — Non-AI REST or Entra JWT — Non-AI REST templates.
-              0 = fall back to the AI RPM limit above (for REST RPM), or unlimited (for REST monthly quota).
+              Applied per-tenant and per-API for REST APIs.
             </p>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

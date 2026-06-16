@@ -12,12 +12,6 @@ namespace AIPolicyEngine.Api.Endpoints;
 /// </summary>
 public static class LogIngestEndpoints
 {
-    // TTL must cover the full read-compute-write cycle including Cosmos latency.
-    // If the lock expires mid-operation, concurrent requests can read stale data.
-    private static readonly TimeSpan ClientUpdateLockTtl = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan ClientUpdateLockRetryDelay = TimeSpan.FromMilliseconds(25);
-    private const int ClientUpdateLockMaxAttempts = 40;
-
     public static RouteGroupBuilder MapLogIngestEndpoints(this IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/api");
@@ -93,7 +87,7 @@ public static class LogIngestEndpoints
             var logCacheTtl = TimeSpan.FromDays(usagePolicy.AggregatedLogRetentionDays);
             var traceCacheTtl = TimeSpan.FromDays(usagePolicy.TraceRetentionDays);
             var lockToken = (RedisValue)Guid.NewGuid().ToString("N");
-            if (!await TryAcquireClientUpdateLock(db, ingestRequest.ClientAppId, ingestRequest.TenantId, lockToken, logger))
+            if (!await ClientUpdateLock.TryAcquireAsync(db, ingestRequest.ClientAppId, ingestRequest.TenantId, lockToken, logger))
             {
                 return Results.Json(
                     new { error = "Client usage update is busy, retry request" },
@@ -208,7 +202,7 @@ public static class LogIngestEndpoints
                 // Update client assignment usage
                 clientAssignment.CurrentPeriodUsage = newUsage;
                 if (isOverQuota)
-                    clientAssignment.OverbilledTokens += totalTokensInRequest;
+                    clientAssignment.OverbilledTokens = newUsage - plan.MonthlyTokenQuota;
 
                 if (!clientAssignment.DeploymentUsage.ContainsKey(ingestRequest.DeploymentId))
                     clientAssignment.DeploymentUsage[ingestRequest.DeploymentId] = 0;
@@ -220,7 +214,7 @@ public static class LogIngestEndpoints
                 // Extend the lock TTL before the Cosmos write to prevent expiry during I/O
                 await db.LockExtendAsync(
                     RedisKeys.ClientUpdateLock(ingestRequest.ClientAppId, ingestRequest.TenantId),
-                    lockToken, ClientUpdateLockTtl);
+                    lockToken, ClientUpdateLock.Ttl);
                 await clientRepo.UpsertAsync(clientAssignment);
 
                 // --- Aggregate into log cache (ephemeral — stays Redis-direct) ---
@@ -285,7 +279,7 @@ public static class LogIngestEndpoints
             }
             finally
             {
-                await ReleaseClientUpdateLock(db, ingestRequest.ClientAppId, ingestRequest.TenantId, lockToken, logger);
+                await ClientUpdateLock.ReleaseAsync(db, ingestRequest.ClientAppId, ingestRequest.TenantId, lockToken, logger);
             }
 
             // Emit custom metrics
@@ -369,7 +363,7 @@ public static class LogIngestEndpoints
             var usagePolicy = await usagePolicyStore.GetAsync();
             var lockToken = (RedisValue)Guid.NewGuid().ToString("N");
 
-            if (!await TryAcquireClientUpdateLock(db, ingestRequest.ClientAppId, ingestRequest.TenantId, lockToken, logger))
+            if (!await ClientUpdateLock.TryAcquireAsync(db, ingestRequest.ClientAppId, ingestRequest.TenantId, lockToken, logger))
             {
                 return Results.Json(
                     new { error = "Client usage update is busy, retry request" },
@@ -395,12 +389,12 @@ public static class LogIngestEndpoints
 
                 await db.LockExtendAsync(
                     RedisKeys.ClientUpdateLock(ingestRequest.ClientAppId, ingestRequest.TenantId),
-                    lockToken, ClientUpdateLockTtl);
+                    lockToken, ClientUpdateLock.Ttl);
                 await clientRepo.UpsertAsync(assignment);
             }
             finally
             {
-                await ReleaseClientUpdateLock(db, ingestRequest.ClientAppId, ingestRequest.TenantId, lockToken, logger);
+                await ClientUpdateLock.ReleaseAsync(db, ingestRequest.ClientAppId, ingestRequest.TenantId, lockToken, logger);
             }
 
             return Results.Ok("REST log processed");
@@ -412,49 +406,10 @@ public static class LogIngestEndpoints
         }
     }
 
-    private static async Task<bool> TryAcquireClientUpdateLock(
-        IDatabase db,
-        string clientAppId,
-        string tenantId,
-        RedisValue lockToken,
-        ILogger logger)
-    {
-        var lockKey = RedisKeys.ClientUpdateLock(clientAppId, tenantId);
-
-        for (var attempt = 0; attempt < ClientUpdateLockMaxAttempts; attempt++)
-        {
-            if (await db.LockTakeAsync(lockKey, lockToken, ClientUpdateLockTtl))
-                return true;
-
-            await Task.Delay(ClientUpdateLockRetryDelay);
-        }
-
-        logger.LogWarning("Failed to acquire client usage lock for {ClientAppId}/{TenantId}", clientAppId, tenantId);
-        return false;
-    }
-
-    private static async Task ReleaseClientUpdateLock(
-        IDatabase db,
-        string clientAppId,
-        string tenantId,
-        RedisValue lockToken,
-        ILogger logger)
-    {
-        try
-        {
-            var lockKey = RedisKeys.ClientUpdateLock(clientAppId, tenantId);
-            await db.LockReleaseAsync(lockKey, lockToken);
-        }
-        catch (RedisException ex)
-        {
-            logger.LogWarning(ex, "Failed to release client usage lock for {ClientAppId}/{TenantId}", clientAppId, tenantId);
-        }
-    }
-
     private static async Task UpdateTpmCounter(
         IDatabase db, PlanData plan, string clientAppId, string tenantId, long minuteWindow, long totalTokens, ILogger logger)
     {
-        if (plan.TokensPerMinuteLimit > 0 && totalTokens > 0)
+        if (totalTokens > 0)
         {
             var tpmKey = RedisKeys.RateLimitTpm(clientAppId, tenantId, minuteWindow);
             var currentTpm = await db.StringIncrementAsync(tpmKey, totalTokens);

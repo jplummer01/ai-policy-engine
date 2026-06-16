@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AIPolicyEngine.Api.Models;
 using AIPolicyEngine.Api.Services;
+using AIPolicyEngine.Api.Services.AccessProfiles;
 using StackExchange.Redis;
 
 namespace AIPolicyEngine.Api.Endpoints;
@@ -290,6 +291,7 @@ public static class PlanEndpoints
         ClientAssignRequest body,
         IRepository<PlanData> planRepo,
         IRepository<ClientPlanAssignment> clientRepo,
+        IAccessProfileRepository accessProfileRepo,
         IUsagePolicyStore usagePolicyStore,
         IConnectionMultiplexer redis,
         ILogger<ClientPlanAssignment> logger)
@@ -310,26 +312,62 @@ public static class PlanEndpoints
                 return Results.BadRequest($"Plan '{body.PlanId}' does not exist");
 
             var usagePolicy = await usagePolicyStore.GetAsync();
-            var currentUsage = await ComputeUsage(redis, clientAppId, tenantId, logger);
+            var clientId = $"{clientAppId}:{tenantId}";
+            var existing = await clientRepo.GetAsync(clientId);
+            var previousPlanId = existing?.PlanId;
 
-            var assignment = new ClientPlanAssignment
+            ClientPlanAssignment assignment;
+            if (existing is not null)
             {
-                ClientAppId = clientAppId,
-                TenantId = tenantId,
-                PlanId = body.PlanId,
-                DisplayName = body.DisplayName ?? $"{clientAppId}/{tenantId}",
-                CurrentPeriodStart = BillingPeriodCalculator.GetCurrentPeriodStartUtc(DateTime.UtcNow, usagePolicy.BillingCycleStartDay),
-                CurrentPeriodUsage = currentUsage,
-                OverbilledTokens = 0,
-                AllowedDeployments = body.AllowedDeployments ?? [],
-                LastUpdated = DateTime.UtcNow
-            };
+                // Reassignment — preserve all current-period counters; only swap plan and surface fields.
+                existing.PlanId = body.PlanId;
+                existing.DisplayName = body.DisplayName ?? existing.DisplayName;
+                existing.AllowedDeployments = body.AllowedDeployments ?? existing.AllowedDeployments;
+                existing.LastUpdated = DateTime.UtcNow;
+                assignment = existing;
+            }
+            else
+            {
+                var currentUsage = await ComputeUsage(redis, clientAppId, tenantId, logger);
+                assignment = new ClientPlanAssignment
+                {
+                    ClientAppId = clientAppId,
+                    TenantId = tenantId,
+                    PlanId = body.PlanId,
+                    DisplayName = body.DisplayName ?? $"{clientAppId}/{tenantId}",
+                    CurrentPeriodStart = BillingPeriodCalculator.GetCurrentPeriodStartUtc(DateTime.UtcNow, usagePolicy.BillingCycleStartDay),
+                    CurrentPeriodUsage = currentUsage,
+                    OverbilledTokens = 0,
+                    AllowedDeployments = body.AllowedDeployments ?? [],
+                    LastUpdated = DateTime.UtcNow
+                };
+            }
 
             var persisted = await clientRepo.UpsertAsync(assignment);
 
+            // Cascade plan change to access profiles that were inheriting the previous plan.
+            // Profiles pointing at a different plan are explicit overrides — leave them alone.
+            // Blocked profiles are skipped regardless.
+            var cascadedProfiles = 0;
+            if (existing is not null && !string.IsNullOrEmpty(previousPlanId) &&
+                !string.Equals(previousPlanId, body.PlanId, StringComparison.Ordinal))
+            {
+                var profiles = await accessProfileRepo.ListAsync(clientAppId, tenantId);
+                foreach (var profile in profiles)
+                {
+                    if (profile.Blocked) continue;
+                    if (!string.Equals(profile.PlanId, previousPlanId, StringComparison.Ordinal)) continue;
+
+                    profile.PlanId = body.PlanId;
+                    profile.UpdatedAt = DateTime.UtcNow;
+                    await accessProfileRepo.UpsertAsync(profile);
+                    cascadedProfiles++;
+                }
+            }
+
             logger.LogInformation(
-                "Client assigned: ClientAppId={ClientAppId}, TenantId={TenantId}, PlanId={PlanId}, Usage={Usage}",
-                clientAppId, tenantId, body.PlanId, currentUsage);
+                "Client assigned: ClientAppId={ClientAppId}, TenantId={TenantId}, PlanId={PlanId}, Usage={Usage}, ProfilesUpdated={ProfilesUpdated}",
+                clientAppId, tenantId, body.PlanId, persisted.CurrentPeriodUsage, cascadedProfiles);
 
             return Results.Json(persisted, JsonConfig.Default);
         }

@@ -44,3 +44,6 @@ data:
 
   # OpenTelemetry (optional — omit if not using a collector)
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+
+  # API Management settings (optional, for APIM integration)
+  Apim__ResourceId: "/subscriptions/<your-subscription-id>/resourceGroups/<your-resource-group>/providers/Microsoft.ApiManagement/service/<your-apim-service>"
