@@ -77,19 +77,19 @@ spec:
             prefix: /chargeback
         - uri:
             prefix: /openapi
-        - uri:
-            exact: /config
       route:
         - destination:
             host: aipolicyengine-api
             port:
               number: 80
+
+    # WebSocket upgrade — headers match must be inside the match block
     - match:
-      - uri:
-          prefix: /ws
-      headers:
-        upgrade:
-          exact: websocket
+        - uri:
+            prefix: /ws
+          headers:
+            upgrade:
+              exact: websocket
       timeout: 30s
       retries:
         attempts: 2

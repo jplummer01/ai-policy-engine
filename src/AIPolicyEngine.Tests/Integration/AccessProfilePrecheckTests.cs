@@ -19,7 +19,10 @@ public sealed class AccessProfilePrecheckTests : IClassFixture<ChargebackApiFact
         "entra-jwt-ai-dlp",
         "subscription-key-ai",
         "subscription-key-ai-dlp",
-        "entra-jwt-rest"
+        "entra-jwt-rest",
+        "keycloak-jwt-ai",
+        "keycloak-jwt-ai-dlp",
+        "keycloak-jwt-rest"
     ];
 
     private static readonly string[] PrecheckTemplateIds =
@@ -27,7 +30,10 @@ public sealed class AccessProfilePrecheckTests : IClassFixture<ChargebackApiFact
         "entra-jwt-ai",
         "entra-jwt-ai-dlp",
         "subscription-key-ai",
-        "subscription-key-ai-dlp"
+        "subscription-key-ai-dlp",
+        "keycloak-jwt-ai",
+        "keycloak-jwt-ai-dlp",
+        "keycloak-jwt-rest"
     ];
 
     private const string ClientAppId = "access-client";
@@ -218,7 +224,10 @@ public sealed class AccessProfilePrecheckTests : IClassFixture<ChargebackApiFact
         foreach (var templateId in PrecheckTemplateIds)
         {
             var policyXml = ReadTemplatePolicy(templateId);
-            Assert.Contains("&apiId={(string)context.Variables[\"apiIdValue\"]}&operationId={(string)context.Variables[\"operationIdValue\"]}", policyXml, StringComparison.Ordinal);
+            // AI templates: ?deploymentId=...&apiId=...&operationId=...
+            // REST templates: ?apiId=...&operationId=... (no deploymentId)
+            Assert.Contains("apiId={(string)context.Variables[\"apiIdValue\"]}", policyXml, StringComparison.Ordinal);
+            Assert.Contains("operationId={(string)context.Variables[\"operationIdValue\"]}", policyXml, StringComparison.Ordinal);
         }
     }
 
@@ -303,8 +312,8 @@ public sealed class AccessProfilePrecheckTests : IClassFixture<ChargebackApiFact
         Name = name,
         MonthlyRate = 99m,
         MonthlyTokenQuota = 1_000_000,
-        TokensPerMinuteLimit = 0,
-        RequestsPerMinuteLimit = 0,
+        TokensPerMinuteLimit = 100_000,
+        RequestsPerMinuteLimit = 100_000,
         AllowOverbilling = true,
         CostPerMillionTokens = 5m,
         RollUpAllDeployments = true
